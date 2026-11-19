@@ -1,0 +1,195 @@
+Comprime:
+
+        cPILA()
+
+        ;carga de parametros
+        ld r23, r31, 8 ;comprdo
+        ld r22, r31, 12 ;texto
+        ld r24, r31, 16 ;N
+        ld r25, r31, 20 ;M
+
+        ;Llamada a longcad rv=r29
+        PUSH(r22)
+        bsr Longcad                                                    ;IMPORTANTE FALTA SALVAGUARDAR CON PUSH LOS REGISTROS QUE SE CAMBIAN CON BR
+        POP(r22)
+        addu r4, r29, r0 ;salvaguardamos longcad
+        ; r4 = longcad
+        st.hu r23, r4, r0 ;guardamos como media palabra (2bytes la longitud de la cadena original)
+        addu r23, r23, 2 ;reorientamos el puntero de comprdo ya que ahora hemos almacenado longcad
+        st.bu r23, r25, r0 ;guardamos M en comprdo
+        addu r2, r23, 1 ;salvaguardamos la direccion de desplazamiento vector de bytes
+        addu r23, r23, 3 ;reorientamos hacia la zona de mapaBits
+        addu r3, r23, r0 ;salvaguardamos la dirección de inicio mapaBits para posterior
+
+
+
+
+        ;ajustamos el tamaño a un múltiplo de 4
+
+        add r6, r4, 3           ; Suma 3 al tamaño original
+        and r6, r6, 0xFFFFFFFC  ; Fuerza a múltiplo de 4 eliminando los últimos dos bits                                 ;!COMPROBAR SI FUNCIONA BIEN EL AJUSTE
+
+        ;Reservamos espacio en la pila para zona3 segun longcad char = byte = 1 espaciomemoria
+        subu r31, r31, r6
+        
+        ;inicializacion de variables
+        addu r7, r0, 0 ;desplazamiento desde inicio de texto hasta char a tratar (chars ya tratados)
+        addu r9, r0, 0 ;Nbit puesta a 1 mapaBits
+        mulu r12, r25, 8 ;Mx8 bytes a copiar
+        LEA(r26, Dir) ;cargamos dir como variable local
+
+
+bucPegaInicio:
+        ;Copiamos los 8xM caracteres iniciales a zona3
+        ld.bu r10, r22, r7 ;carga del byte
+        addu r11, r31, r7 ;dirección donde guardar el byte 
+        st.bu r11, r10, r0 ;guardamos en la direccion de la reserva en pila
+        addu r7, r7, 1 ;contamos que estamos cargando y guardando un byte
+        cmp r19, r12, r7 ;vemos si hemos llegado a los 8xM caracteres 
+        bb0 eq, r19, bucPegaInicio ;en el caso de no finalizar vovlemos al bucle
+        addu r15, r7, r0 ;salvaguardamos el r15 como nueva variable la distancia del texto ya copiado en la pila (nBytesPilaZona3) y usamos r7 para buscaMax y el texto original
+
+bucInicializaMapaBits:
+        
+        st.bu r23, 0x00, r0
+        addu r10, r0, 1 ;contador de bytes inicializados
+        addu r23, r23, 1 ;avanzamos el puntero
+        addu r9, r9, r7 ;actualizamos cuantos bits corresponden a los caracteres iniciales añadidos puestos a 0
+        cmp r29, r10, r25 ;comparamos los Bytes de mapa bits iniciales cuyos bits estan a 0 que corresponden al texto copiado
+        bb0 eq, r29, bucInicializaMapaBits
+
+
+
+
+bucleTratadoMapa:
+        divu r13, r9, 8 ;comprobamos si estamos en una posicion multiplo de 8 en el contador mapaBits
+        mulu r13, r13, 8
+        subu r13, r9, r13
+        cmp r19, r13, 0 ;aqui vemos si es multiplo de 8
+        bb0 eq, r19, bucleTratadoChars
+        st.bu r23, 0x00, r0
+        addu r23, r23, 1
+
+
+bucleTratadoChars:
+
+        cmp r19, r7, r4 ;vemos si ref ha llegado al final 
+        bb1, eq, r19, finBucChars
+
+        ;Llamamos a buscaMax pasandole los parámetros
+        PUSH(r26) ;Dir(P)
+        PUSH(r7) ;Max
+        PUSH(r22) ;Ref
+        bsr BuscaMax                                                    ;IMPORTANTE FALTA SALVAGUARDAR CON PUSH LOS REGISTROS QUE SE CAMBIAN CON BR
+        POP(r22)
+        POP(r7)
+        POP(r26)
+
+        cmp r19, r29, 3
+        bb1 gt, r19, buscaMaxMayorIgualQue4
+
+        ;en caso de r29<4
+        ld.bu r10, r22, r7 ;cargamos caracter
+        addu r11, r31, r15 ; apuntamos en la pila
+        st.bu r11, r10, r0 ;almacenamos en la pila
+
+        addu r15, r15, 1 ;incrementamos el marcador de zonaPila3
+        addu r7, r7, 1 ;incrementamos el nChars tratados
+        addu r9, r9, 1 ;incrementamos el tamaño en bits de MapaBit
+        br bucleTratadoMapa ;volvemos al inicio para que trate MapaBits y regrese al bucle BuscaMax
+
+;en caso de que r29>=4
+buscaMaxMayorIgualQue4:
+
+        PUSH(r9)
+        PUSH(r3)
+        bsr PoneBitA1
+        POP(r3)
+        POP(r9)
+
+        ld.hu r10, r26, r0 ;cargamos dir(p)
+        addu r11, r31, r15 ;usamos r11 para apuntar a la pila                                   IMPORTANTE FALTA SALVAGUARDAR CON PUSH LOS REGISTROS QUE SE CAMBIAN CON BR
+        st.hu r11, r10, r0 ;guardamos a nivel de palabra (2bytes) la P                              ESTO POR QUE SI LLAMO A OTRA FUNCION ME VA A JODER LO QUE ESTA FUNCION
+        addu r15, r15, 2 ;reorientamos el puntero 2 bytes                                           TIENE GUARDADO EN LOS REGISTROS, ASI QUE HAY QUE PUSHEARLOS Y POPEARLOS 
+
+        addu r11, r31, r15 ; apuntamos a la pila
+        st.bu r11, r29, 0; cargamos en la direccion la L
+        addu r15, r15, 1 ;reorientamos el puntero 1 byte
+
+        addu r7, r7, r29 ;avanzamos L unidades el marcador de texto
+        addu r9, r9, 1 ;incrementamos en 1 el contador MapaBits
+
+        br bucleTratadoMapa ;volvemos al bucle
+
+
+
+
+finBucChars:  
+
+        ;calculamos nbytes de mapabits
+        or r6, r9, r0        ; Copia r9 en r6
+        addu r6, r6, 7       ; Suma r6 + 7
+        rot r6, r6, 3        ; Divide r6 entre 8 (rotación a la derecha)
+        mulu r7, r6, 8 ;numero de bits en mapa Bits
+        addu r6, r7, r12 ;numero de bits en mapabit + numero chars en cabecera
+        st.hu r2, r6, r0 ;guardamos en el comprimido
+
+        ;preparamos argumentos para BucCopiaAComp
+        PUSH(r31)
+        bsr LongCad
+        POP(r31)
+
+        addu r11, r31, r0
+
+BucCopiaAComp:
+
+        
+        ld.bu r10, r11, r0
+        st.bu r23, r10, r0
+        addu r11, r11, 1
+        addu r23, r23, 1
+        cmp r19, r10, 0 ;compara si hemos llegado al final
+        bb0 eq, r19, BucCopiaAComp ;si no hemos llegado a /0 seguimos bucle
+
+FinComprime:
+        ;sumamos los tamaños
+
+
+        addu r6, r7, r29 ;longcad + longMapaBits
+        addu r6, r6, 5 ; r6 + tamaño cabecera
+        addu r29, r6, r0 ;rv
+        dPILA()
+        jmp(r1)
+
+
+
+        
+
+
+
+
+
+
+
+
+
+        
+
+
+
+
+  
+
+
+
+
+        
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,47 @@
+BuscaChar:
+          POP(r20) ;to
+          POP(r21) ;from
+          POP(r22) ;ref
+          POP(r23) ;C
+            
+          cPILA()
+          bsr funBuscaChar ;comenzamos el bucle de busqueda
+          POP(r29) ;rv
+          dPILA()
+
+
+
+
+funBuscaChar:
+            addu r4, r4, r21 ; variable para progresar en las direcciones desde from
+
+bucBuscaChar:
+
+            ld.bu r5, r22, r4 ;ref o cadena para buscar cargada por caracter
+            cmp r19, r5, r23 ;compara si ha encontrado el caracter
+            bb1 eq, r19, finBucBuscaChar ;si el caracter se ha encontrado se finaliza el bucle
+            addu r4, r4, 1 ;incrementamos en 1 el puntero en la posicion de memoria de ref
+            cmp r19, r4, r20 ;comparamos si hemos llegado a to
+            bb0 eq, r19, bucBuscaChar
+            PUSH(r20)
+            jmp(r1)
+
+bucFinChar:
+            PUSH(r4)
+            jmp(r1)
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

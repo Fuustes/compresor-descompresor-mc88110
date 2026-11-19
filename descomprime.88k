@@ -1,0 +1,286 @@
+
+
+;MACROS
+
+
+LEA:   MACRO(ra, eti)
+    or   ra, r0, low(eti)
+    or.u ra, ra, high(eti)
+ENDMACRO
+
+LOAD:   MACRO(ra, eti)
+    LEA(ra, eti)        ; rA <- &eti
+    ld ra, ra, 0        ; rA <- *rA
+ENDMACRO
+
+PUSH:   MACRO(ra)
+    subu r30, r30, 4        
+    st ra, r30, 0           
+ENDMACRO
+
+POP:    MACRO(ra)
+    ld ra, r30, 0
+    addu r30, r30, 4
+ENDMACRO
+
+cPILA:		MACRO()
+			PUSH(r1)
+			PUSH(r31)
+			or r31, r30, r30
+ENDMACRO
+
+dPILA:		MACRO()
+			or r30, r31, r31
+			POP(r31)
+			POP(r1)
+ENDMACRO
+
+
+
+org 0x00000010
+
+Ventrada: data "tres tristes tigres comen trigo en un trigal, el primer tigre que...\0"
+org 0x100
+
+Vsalida: res 200
+
+org 0x300 
+Vdesc: res 200
+
+
+N: data 4
+M: data 1
+Dir: res 4
+
+
+org 1000
+
+PPAL:
+LEA(r30,9500)
+LEA(r24,Vdesc)
+LEA(r21,Vsalida) 
+
+PUSH(r24) 
+PUSH(r21)
+bsr Descomprime
+POP(r21)
+POP(r24)
+
+stop
+
+org 2100
+;Sección Descomprime
+;====================================================================================
+
+
+Descomprime:
+
+    cPILA()
+
+    ;-----------------------------
+    ; Parámetros
+    ;-----------------------------
+    ld r20, r31, 8      ; *cmpdo
+    ld r21, r31, 12     ; *texto destino
+
+    ;-----------------------------
+    ; Leer longitud original (2 bytes, little endian)
+    ;-----------------------------
+    ld.bu r5, r20, 0
+    ld.bu r6, r20, 1
+    mulu  r6, r6, 256
+    or    r6, r5, r6        ; r6 = longitud restante
+
+    ;-----------------------------
+    ; Leer M
+    ;-----------------------------
+    ld.bu r25, r20, 2       ; M
+
+    ;-----------------------------
+    ; Leer desplazamiento zona3
+    ;-----------------------------
+    ld.bu r12, r20, 3
+    ld.bu r13, r20, 4
+    mulu  r13, r13, 256
+    or    r23, r12, r13     ; r23 = offset zona3
+
+    ;-----------------------------
+    ; mapabits empieza en offset 5
+    ;-----------------------------
+    addu r22, r20, 5        ; *mapabits
+
+    ;-----------------------------
+    ; Inicialización de contadores
+    ;-----------------------------
+    or   r13, r0, r0        ; desplazamiento en texto destino
+    or   r24, r0, r0        ; contador de bits mapabits
+
+    ;=============================
+    ; Copiar 8*M caracteres iniciales
+    ;=============================
+    mulu r18, r25, 8        ; r18 = 8*M
+
+copiar_inicial:
+    cmp r7, r18, 0
+    bb1 eq, r7, bucle_desc
+
+    ld.bu r10, r20, r23
+    st.b r10, r21, r13
+
+    addu r23, r23, 1
+    addu r13, r13, 1
+    subu r18, r18, 1
+    subu r6,  r6,  1
+
+    br copiar_inicial
+
+;=============================
+; Bucle principal
+;=============================
+bucle_desc:
+
+    cmp r7, r6, 0
+    bb1 eq, r7, fin_descomprime
+
+    ;-----------------------------
+    ; Leer bit del mapa
+    ;-----------------------------
+    PUSH(r13)
+    PUSH(r21)
+    PUSH(r18)
+    PUSH(r23)
+    PUSH(r20)
+    PUSH(r6)
+    PUSH(r24)
+    PUSH(r22)
+    bsr LeeBit
+    POP(r22)
+    POP(r24)
+    PUSH(r6)
+    PUSH(r20)
+    PUSH(r23)
+    PUSH(r18)
+    PUSH(r21)
+    PUSH(r13)
+
+
+
+    cmp r7, r29, 0
+    bb1 eq, r7, copiar_literal
+
+    ;=============================
+    ; Copiar subcadena (bit = 1)
+    ;=============================
+    ld.bu r2, r20, r23
+    addu r23, r23, 1
+    ld.bu r3, r20, r23         ;SECCION PELIGRO
+    mulu  r3, r3, 256
+    or    r3, r2, r3        ; P
+    addu  r23, r23, 1
+
+    ld.bu r2, r20, r23     ; L
+    addu  r23, r23, 1
+    addu r24, r24, 1
+
+copiar_subcadena:
+    cmp r7, r2, 0
+    bb1 eq, r7, bucle_desc
+
+    ld.bu r10, r21, r3
+    st.b r10, r21, r13
+
+    addu r3,  r3,  1
+    addu r13, r13, 1
+    subu r2,  r2,  1
+    subu r6,  r6,  1
+
+    br copiar_subcadena
+
+;=============================
+; Copiar literal (bit = 0)
+;=============================
+copiar_literal:
+
+    ld.bu r10, r20, r23
+    st.b r10, r21, r13
+
+    addu r23, r23, 1
+    addu r13, r13, 1
+    subu r6,  r6,  1
+    addu r24, r24, 1
+
+    br bucle_desc
+
+;=============================
+; Final
+;=============================
+fin_descomprime:
+
+    or   r10, r0, 0
+    st.b r10, r21, r13     ; '\0'
+
+    addu r29, r13, r0      ; rv = longitud escrita
+
+    dPILA()
+    jmp(r1)
+
+
+
+;============================================================================
+; LeeBit (adaptado a tu Comprime / PoneBitA1)
+; Entrada:
+;   r31+8  -> dirZonaCB
+;   r31+12 -> NumBit
+; Salida:
+;   r29 = 0 si bit = 0
+;   r29 = 1 si bit = 1
+;============================================================================
+
+LeeBit:
+
+        cPILA()
+
+        ld r20, r31, 8       ; dirZonaCB
+        ld r21, r31, 12      ; NumBit
+
+        ;----------------------------------
+        ; byte = NumBit / 8
+        ; bit  = NumBit % 8
+        ;----------------------------------
+        divu r6, r21, 8
+        mulu r7, r6, 8
+        subu r7, r21, r7     ; r7 = NumBit % 8
+
+        ;----------------------------------
+        ; dir byte = dirZonaCB + byte
+        ;----------------------------------
+        addu r6, r20, r6
+        ld.bu r8, r6, 0      ; byte de mapaBits
+
+        ;----------------------------------
+        ; bit en formato BIG endian (como PoneBitA1)
+        ; bitReal = 7 - bit
+        
+        ;----------------------------------
+        or   r9, r0, 7
+        subu r7, r9, r7
+
+        ;----------------------------------
+        ; Desplazar bit a LSB
+        ;----------------------------------
+desplaza:
+        cmp r5, r7, 0
+        bb1 eq, r5, comprobar
+        divu r8, r8, 2
+        subu r7, r7, 1
+        br desplaza
+
+comprobar:
+        and r8, r8, 1
+        addu r29, r8, r0     ; rv = 0 o 1
+
+        dPILA()
+        jmp(r1)
+
+
+

@@ -1,0 +1,35 @@
+CoincidenCad:
+             
+             cPILA()
+             ld r20, r31, 8 ;cadena1
+             ld r21, r31, 12 ;cadena 2
+             PUSH(r0)
+
+
+BucCoincidenCad:
+
+             POP(r5)
+             ld.bu r6, r20, r5 ;cadena 1
+             ld.bu r7, r21, r5 ;cadena 2
+             cmp r19, r6, r7 ; compara si los caracteres son iguales
+             cmp r18, r6, 0 ; compara si hemos llegado al final de la cadena 1, no hace falta comprobarlo en las dos ya que si una llega al final y la otra no
+                            ; su comparación nos hará saber que ha terminado. Esto es para comprobar en el caso de que sean de la misma longitud
+             bb1 eq, r18, FinCoincidenCad
+             bb1 eq, r19, IncrementaLong
+             jmp(FinCoincidenCad)
+             
+
+IncrementaLong:
+             
+             addu r5, r5, 1
+             PUSH(r5)
+             jmp(BucCoincidenCad)
+
+FinCoincidenCad:
+
+             addu r29, r5, r0
+             dPILA()
+             jmp(r1)
+             
+
+             

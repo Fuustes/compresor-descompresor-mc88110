@@ -1,0 +1,39 @@
+
+LongCad:   
+            
+            cPILA()
+            or r5, r0, 0
+            PUSH(r5)
+            or r20, r31, 14 ;cadena
+            ld.bu r21 , r20, r0; v.entrada
+            
+            
+
+BucLong:
+
+            POP(r5) ;tomamos la variable contador/longitud
+            ld.bu r20, r21, r5 ;cargamos cada caracter
+            addu r5, r5, 1 ;sumamos 1 al puntero/contador de longitud
+            PUSH(r5) ;reintroducimos la nueva longitud
+            cmp r9,r20,0 ; compara si el caracter es /0
+            bb0 eq, r9, BucLong ;si no ha llegado a /0 vuelve al bucle
+
+FinLong:   POP(r5) ;toma la longitud (contando con /0)
+           subu r5, r5, 1 ;resta 1 para no contar con /0
+           addu r29, r5, 0
+           dPILA()
+           jmp(r1) ;retorno a la llamada
+
+
+
+
+
+
+
+
+            
+            
+            
+
+
+    
