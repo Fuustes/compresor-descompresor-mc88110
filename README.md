@@ -10,7 +10,7 @@ Es un compresor y descompresor de cadenas escrito en **ensamblador del Motorola 
 `Memoria.pdf` incluye el diseño, las pruebas y el registro de horas.
 
 ## Ejecución
-Se necesita el simulador del 88110 de la asignatura (no se incluye en el repositorio). Con él:
+Se necesita el simulador del 88110 (no se incluye en el repositorio). Con él:
 ```
 mc88110.bat PPAL.88k
 ```
